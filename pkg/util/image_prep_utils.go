@@ -31,19 +31,13 @@ import (
 	"github.com/golang/glog"
 )
 
-var sourceToPrepMap = map[string]func(ip *ImagePrepper) Prepper{
-	"Local Daemon":   func(ip *ImagePrepper) Prepper { return DaemonPrepper{ImagePrepper: ip} },
-	"Cloud Registry": func(ip *ImagePrepper) Prepper { return CloudPrepper{ImagePrepper: ip} },
-	"Tar":            func(ip *ImagePrepper) Prepper { return TarPrepper{ImagePrepper: ip} },
-}
-
 // since we iterate through these sequentially, order matters.
 // we intentionally check local daemon first. diff.go forces alternate behavior
 // by checking image prefix.
-var sourceCheckMap = map[string]func(string) bool{
-	"Local Daemon":   CheckValidLocalImageID,
-	"Cloud Registry": CheckValidRemoteImageID,
-	"Tar":            CheckTar,
+var orderedPreppers = []func(ip *ImagePrepper) Prepper{
+	func(ip *ImagePrepper) Prepper { return DaemonPrepper{ImagePrepper: ip} },
+	func(ip *ImagePrepper) Prepper { return CloudPrepper{ImagePrepper: ip} },
+	func(ip *ImagePrepper) Prepper { return TarPrepper{ImagePrepper: ip} },
 }
 
 type Image struct {
@@ -92,14 +86,12 @@ func getFileSystemFromReference(ref types.ImageReference, imageName string) (str
 
 	img, err := ref.NewImage(nil)
 	if err != nil {
-		glog.Error(err)
 		return "", err
 	}
 	defer img.Close()
 
 	imgSrc, err := ref.NewImageSource(nil, nil)
 	if err != nil {
-		glog.Error(err)
 		return "", err
 	}
 

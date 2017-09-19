@@ -17,15 +17,37 @@ limitations under the License.
 package util
 
 import (
+	"regexp"
+
 	"github.com/containers/image/docker"
+	"github.com/containers/image/docker/reference"
 )
+
+const RemotePrefix = "remote://"
 
 // CloudPrepper prepares images sourced from a Cloud registry
 type CloudPrepper struct {
 	*ImagePrepper
 }
 
-func (p CloudPrepper) getFileSystem() (string, error) {
+func (p CloudPrepper) Name() string {
+	return "Cloud Registry"
+}
+
+func (p CloudPrepper) SupportsImage() bool {
+	daemonRegex := regexp.MustCompile(DaemonPrefix + ".*")
+	if match := daemonRegex.MatchString(p.ImagePrepper.Source); match {
+		return false
+	}
+	_, err := reference.Parse(p.ImagePrepper.Source)
+	return (err == nil) && !IsTar(p.ImagePrepper.Source)
+}
+
+func (p CloudPrepper) GetSource() string {
+	return p.ImagePrepper.Source
+}
+
+func (p CloudPrepper) GetFileSystem() (string, error) {
 	ref, err := docker.ParseReference("//" + p.Source)
 	if err != nil {
 		return "", err
@@ -34,7 +56,7 @@ func (p CloudPrepper) getFileSystem() (string, error) {
 	return getFileSystemFromReference(ref, p.Source)
 }
 
-func (p CloudPrepper) getConfig() (ConfigSchema, error) {
+func (p CloudPrepper) GetConfig() (ConfigSchema, error) {
 	ref, err := docker.ParseReference("//" + p.Source)
 	if err != nil {
 		return ConfigSchema{}, err

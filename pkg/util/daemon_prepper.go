@@ -18,16 +18,33 @@ package util
 
 import (
 	"context"
+	"strings"
 
 	"github.com/containers/image/docker/daemon"
+	"github.com/containers/image/docker/reference"
 	"github.com/golang/glog"
 )
+
+const DaemonPrefix = "daemon://"
 
 type DaemonPrepper struct {
 	*ImagePrepper
 }
 
-func (p DaemonPrepper) getFileSystem() (string, error) {
+func (p DaemonPrepper) Name() string {
+	return "Local Daemon"
+}
+
+func (p DaemonPrepper) SupportsImage() bool {
+	_, err := reference.Parse(strings.Replace(p.ImagePrepper.Source, DaemonPrefix, "", -1))
+	return (err == nil) && !IsTar(p.ImagePrepper.Source)
+}
+
+func (p DaemonPrepper) GetSource() string {
+	return p.ImagePrepper.Source
+}
+
+func (p DaemonPrepper) GetFileSystem() (string, error) {
 	ref, err := daemon.ParseReference(p.Source)
 	if err != nil {
 		return "", err
@@ -36,7 +53,7 @@ func (p DaemonPrepper) getFileSystem() (string, error) {
 	return getFileSystemFromReference(ref, p.Source)
 }
 
-func (p DaemonPrepper) getConfig() (ConfigSchema, error) {
+func (p DaemonPrepper) GetConfig() (ConfigSchema, error) {
 	ref, err := daemon.ParseReference(p.Source)
 	if err != nil {
 		return ConfigSchema{}, err
@@ -45,7 +62,7 @@ func (p DaemonPrepper) getConfig() (ConfigSchema, error) {
 	return getConfigFromReference(ref, p.Source)
 }
 
-func (p DaemonPrepper) getHistory() []ImageHistoryItem {
+func (p DaemonPrepper) GetHistory() []ImageHistoryItem {
 	history, err := p.Client.ImageHistory(context.Background(), p.Source)
 	if err != nil {
 		glog.Error("Could not obtain image history for %s: %s", p.Source, err)
