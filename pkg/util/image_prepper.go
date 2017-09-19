@@ -31,24 +31,27 @@ type ImagePrepper struct {
 }
 
 type Prepper interface {
-	getFileSystem() (string, error)
-	getConfig() (ConfigSchema, error)
+	Name() string
+	GetSource() string
+	GetFileSystem() (string, error)
+	GetConfig() (ConfigSchema, error)
+	SupportsImage() bool
 }
 
-func getImage(prepper Prepper, source string) (Image, error) {
-	imgPath, err := prepper.getFileSystem()
+func getImage(prepper Prepper) (Image, error) {
+	imgPath, err := prepper.GetFileSystem()
 	if err != nil {
 		return Image{}, fmt.Errorf("error msg: %s", err.Error())
 	}
 
-	config, err := prepper.getConfig()
+	config, err := prepper.GetConfig()
 	if err != nil {
 		return Image{}, fmt.Errorf("error msg: %s", err.Error())
 	}
 
-	glog.Infof("Finished prepping image %s", source)
+	glog.Infof("Finished prepping image %s", prepper.GetSource())
 	return Image{
-		Source: source,
+		Source: prepper.GetSource(),
 		FSPath: imgPath,
 		Config: config,
 	}, nil
@@ -60,23 +63,23 @@ func (p *ImagePrepper) GetImage() (Image, error) {
 	var prepper Prepper
 
 	// first, respect prefixes on image names
-	if strings.HasPrefix(p.Source, "daemon://") {
-		p.Source = strings.Replace(p.Source, "daemon://", "", -1)
+	if strings.HasPrefix(p.Source, DaemonPrefix) {
+		p.Source = strings.Replace(p.Source, DaemonPrefix, "", -1)
 		prepper = DaemonPrepper{ImagePrepper: p}
-		return getImage(prepper, p.Source)
-	} else if strings.HasPrefix(p.Source, "remote://") {
-		p.Source = strings.Replace(p.Source, "remote://", "", -1)
+		return getImage(prepper)
+	} else if strings.HasPrefix(p.Source, RemotePrefix) {
+		p.Source = strings.Replace(p.Source, RemotePrefix, "", -1)
 		prepper = CloudPrepper{ImagePrepper: p}
-		return getImage(prepper, p.Source)
+		return getImage(prepper)
 	}
 
 	// if no prefix found, check local daemon first, otherwise default to cloud registry
-	for source, check := range sourceCheckMap {
-		if check(p.Source) {
-			prepper = sourceToPrepMap[source](p)
-			glog.Infof("Attempting to retrieve image with source %s", source)
+	for _, prepperConstructor := range orderedPreppers {
+		prepper = prepperConstructor(p)
+		if prepper.SupportsImage() {
+			glog.Infof("Attempting to retrieve image from %s", prepper.Name())
 
-			img, err := getImage(prepper, p.Source)
+			img, err := getImage(prepper)
 			if err != nil {
 				glog.Warning(err.Error())
 				continue

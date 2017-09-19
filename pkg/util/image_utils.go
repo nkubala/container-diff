@@ -21,10 +21,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strings"
 
-	"github.com/containers/image/docker/reference"
 	"github.com/docker/docker/pkg/system"
 	"github.com/golang/glog"
 )
@@ -42,24 +39,6 @@ func GetImageLayers(pathToImage string) []string {
 		}
 	}
 	return layers
-}
-
-func checkValidImageID(image string) bool {
-	_, err := reference.Parse(image)
-	return (err == nil)
-}
-
-func CheckValidLocalImageID(image string) bool {
-	return checkValidImageID(strings.Replace(image, "daemon://", "", -1)) &&
-		!CheckTar(image)
-}
-
-func CheckValidRemoteImageID(image string) bool {
-	daemonRegex := regexp.MustCompile("daemon://.*")
-	if match := daemonRegex.MatchString(image); match {
-		return false
-	}
-	return checkValidImageID(image) && !CheckTar(image)
 }
 
 // copyToFile writes the content of the reader to the specified file
