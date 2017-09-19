@@ -21,7 +21,7 @@ import (
 	"strings"
 
 	"github.com/containers/image/docker/daemon"
-	"github.com/docker/distribution/reference"
+	"github.com/containers/image/docker/reference"
 	"github.com/golang/glog"
 )
 

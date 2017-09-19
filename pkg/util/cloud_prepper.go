@@ -20,7 +20,7 @@ import (
 	"regexp"
 
 	"github.com/containers/image/docker"
-	"github.com/docker/distribution/reference"
+	"github.com/containers/image/docker/reference"
 )
 
 const RemotePrefix = "remote://"
