@@ -18,14 +18,19 @@ package util
 
 import (
 	"context"
-	"regexp"
+
+	"strings"
 
 	"github.com/containers/image/docker/daemon"
+
+	"github.com/containers/image/docker/reference"
 	"github.com/golang/glog"
 )
 
+const DaemonPrefix = "daemon://"
+
 type DaemonPrepper struct {
-	ImagePrepper
+	*ImagePrepper
 }
 
 func (p DaemonPrepper) Name() string {
@@ -37,11 +42,8 @@ func (p DaemonPrepper) GetSource() string {
 }
 
 func (p DaemonPrepper) SupportsImage() bool {
-	pattern := regexp.MustCompile("[a-z|0-9]{12}")
-	if exp := pattern.FindString(p.ImagePrepper.Source); exp != p.ImagePrepper.Source {
-		return false
-	}
-	return true
+	_, err := reference.Parse(strings.Replace(p.ImagePrepper.Source, DaemonPrefix, "", -1))
+	return (err != nil) && !IsTar(p.ImagePrepper.Source)
 }
 
 func (p DaemonPrepper) GetFileSystem() (string, error) {

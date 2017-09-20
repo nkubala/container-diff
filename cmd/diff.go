@@ -80,8 +80,10 @@ func diffImages(image1Arg, image2Arg string, diffArgs []string) error {
 	for imageArg := range imageMap {
 		go func(imageName string, imageMap map[string]*pkgutil.Image) {
 			defer wg.Done()
+
+			prefixedName := processImageName(imageName)
 			ip := pkgutil.ImagePrepper{
-				Source: imageName,
+				Source: prefixedName,
 				Client: cli,
 			}
 			image, err := ip.GetImage()
@@ -112,6 +114,14 @@ func diffImages(image1Arg, image2Arg string, diffArgs []string) error {
 
 	}
 	return nil
+}
+
+func processImageName(imageName string) string {
+	if pkgutil.IsTar(imageName) || strings.HasPrefix(imageName, "daemon://") {
+		return imageName
+	}
+	// not a tar and not explicitly local, so force remote
+	return "remote://" + imageName
 }
 
 func init() {
