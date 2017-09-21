@@ -55,7 +55,6 @@ func (p DaemonPrepper) GetConfig() (ConfigSchema, error) {
 	if err != nil {
 		return ConfigSchema{}, err
 	}
-
 	return getConfigFromReference(ref, p.Source)
 }
 

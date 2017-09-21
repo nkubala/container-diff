@@ -18,6 +18,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	goflag "flag"
 	"fmt"
 	"sort"
@@ -26,7 +27,6 @@ import (
 	"github.com/GoogleCloudPlatform/container-diff/differs"
 	pkgutil "github.com/GoogleCloudPlatform/container-diff/pkg/util"
 	"github.com/GoogleCloudPlatform/container-diff/util"
-
 	"github.com/docker/docker/client"
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
@@ -53,7 +53,7 @@ var RootCmd = &cobra.Command{
 func NewClient() (*client.Client, error) {
 	cli, err := client.NewEnvClient()
 	if err != nil {
-		return nil, fmt.Errorf("err msg: %s", err)
+		return nil, fmt.Errorf("Error getting docker client: %s", err)
 	}
 	cli.NegotiateAPIVersion(context.Background())
 
