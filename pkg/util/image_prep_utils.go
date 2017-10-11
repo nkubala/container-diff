@@ -109,52 +109,57 @@ func getFileSystemFromReference(ref types.ImageReference, imageName string) (str
 		return "", err
 	}
 
-	layerInfos := img.LayerInfos()
-	wg := &sync.WaitGroup{}
-	wg.Add(len(layerInfos))
+	err = processLayers(path, imgSrc, img.LayerInfos())
+	return path, err
+}
 
-	errs := make(chan error, 1)
-
-	for i, b := range layerInfos {
-		go func(b types.BlobInfo, i int) {
-			bi, _, err := imgSrc.GetBlob(b)
-			if err != nil {
-				errs <- fmt.Errorf("Failed to pull image layer: %s", err)
-				wg.Done()
-				return
-			}
-			// try and detect layer compression
-			f, reader, err := compression.DetectCompression(bi)
-			if err != nil {
-				errs <- fmt.Errorf("Failed to detect image compression: %s", err)
-				return
-			}
-			if f != nil {
-				// decompress if necessary
-				reader, err = f(reader)
+func processLayers(path string, imgSrc types.ImageSource, layerInfos []types.BlobInfo) error {
+	errs := make(chan error)
+	go func() {
+		var wg sync.WaitGroup
+		wg.Add(len(layerInfos))
+		for i, b := range layerInfos {
+			go func(b types.BlobInfo, i int) {
+				defer wg.Done()
+				bi, _, err := imgSrc.GetBlob(b)
 				if err != nil {
-					errs <- fmt.Errorf("Failed to decompress image: %s", err)
-					wg.Done()
+					errs <- fmt.Errorf("Failed to pull image layer: %s", err)
 					return
 				}
-			}
-			tr := tar.NewReader(reader)
-			err = unpackTar(tr, path)
-			if err != nil {
-				errs <- fmt.Errorf("Failed to untar layer with error: %s", err)
-			}
-			wg.Done()
-			return
-		}(b, i)
-	}
+				// try and detect layer compression
+				f, reader, err := compression.DetectCompression(bi)
+				if err != nil {
+					errs <- fmt.Errorf("Failed to detect image compression: %s", err)
+					return
+				}
+				if f != nil {
+					// decompress if necessary
+					reader, err = f(reader)
+					if err != nil {
+						errs <- fmt.Errorf("Failed to decompress image: %s", err)
+						return
+					}
+				}
+				tr := tar.NewReader(reader)
+				err = unpackTar(tr, path)
+				if err != nil {
+					errs <- fmt.Errorf("Failed to untar layer with error: %s", err)
+				}
+				return
+			}(b, i)
+		}
+		wg.Wait()
+		close(errs)
+	}()
+	var err error
 	if len(errs) != 0 {
 		var fullError string
 		for err := range errs {
 			fullError = fullError + err.Error()
 		}
-		return "", errors.New(fullError)
+		return errors.New(fullError)
 	}
-	return path, nil
+	return err
 }
 
 func getConfigFromReference(ref types.ImageReference, source string) (ConfigSchema, error) {
