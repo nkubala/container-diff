@@ -27,6 +27,7 @@ import (
 	"github.com/containers/image/pkg/compression"
 	"github.com/containers/image/types"
 	"github.com/golang/glog"
+	"github.com/sethgrid/multibar"
 )
 
 type Prepper interface {
@@ -107,8 +108,22 @@ func getFileSystemFromReference(ref types.ImageReference, imageName string) (str
 		return "", err
 	}
 
-	for _, b := range img.LayerInfos() {
-		bi, _, err := imgSrc.GetBlob(b)
+	layerInfos := img.LayerInfos()
+
+	// bars := make(map[int]multibar.ProgressFunc)
+	progressBars, _ := multibar.New()
+	// for i, b := range layerInfos {
+	// 	_, size, _ := imgSrc.GetBlob(b)
+	// 	bar := progressBars.MakeBar(int(size), string(b.Digest))
+	// 	bars[i] = bar
+	// }
+	// wg := &sync.WaitGroup{}
+	// wg.Add(len(layerInfos))
+	go progressBars.Listen()
+
+	for _, b := range layerInfos {
+		bi, size, err := imgSrc.GetBlob(b)
+		bar := progressBars.MakeBar(int(size), string(b.Digest))
 		if err != nil {
 			glog.Errorf("Failed to pull image layer: %s", err)
 			return "", err
@@ -128,7 +143,7 @@ func getFileSystemFromReference(ref types.ImageReference, imageName string) (str
 			}
 		}
 		tr := tar.NewReader(reader)
-		err = unpackTar(tr, path)
+		err = unpackTar(tr, path, bar)
 		if err != nil {
 			glog.Errorf("Failed to untar layer with error: %s", err)
 		}

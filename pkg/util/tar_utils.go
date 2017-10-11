@@ -24,9 +24,14 @@ import (
 	"strings"
 
 	"github.com/golang/glog"
+	"github.com/sethgrid/multibar"
 )
 
-func unpackTar(tr *tar.Reader, path string) error {
+func unpackTar(tr *tar.Reader, path string, bar multibar.ProgressFunc) error {
+	// bar := pb.New(int(size)).Prefix(name).SetUnits(pb.U_BYTES).SetRefreshRate(time.Microsecond)
+	// bar.ShowTimeLeft = false
+	// bar.Start()
+	currentBytes := 0
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {
@@ -82,14 +87,24 @@ func unpackTar(tr *tar.Reader, path string) error {
 				glog.Errorf("Error opening file %s", target)
 				return err
 			}
-			_, err = io.Copy(currFile, tr)
+			// writer := io.MultiWriter(currFile, bar)
+			bytes, err := io.Copy(currFile, tr)
+			if bar != nil {
+				currentBytes = currentBytes + int(bytes)
+				bar(currentBytes)
+			}
+			// for i := 0; i < int(bytes); i++ {
+			// 	bar.Increment()
+			// }
+			// _, err = io.Copy(writer, tr)
 			if err != nil {
 				return err
 			}
+			// bar.Finish()
 			currFile.Close()
 		}
-
 	}
+	// bar.Finish()
 	return nil
 }
 
@@ -105,7 +120,7 @@ func UnTar(filename string, target string) error {
 	}
 	defer file.Close()
 	tr := tar.NewReader(file)
-	err = unpackTar(tr, target)
+	err = unpackTar(tr, target, nil)
 	if err != nil {
 		glog.Error(err)
 		return err
