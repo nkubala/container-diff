@@ -118,8 +118,9 @@ func processLayers(path string, imgSrc types.ImageSource, layerInfos []types.Blo
 	go func() {
 		var wg sync.WaitGroup
 		wg.Add(len(layerInfos))
+		// var mutex = &sync.Mutex{}
 		for i, b := range layerInfos {
-			go func(b types.BlobInfo, i int) {
+			go func(b types.BlobInfo, i int, wg *sync.WaitGroup) {
 				defer wg.Done()
 				bi, _, err := imgSrc.GetBlob(b)
 				if err != nil {
@@ -141,12 +142,14 @@ func processLayers(path string, imgSrc types.ImageSource, layerInfos []types.Blo
 					}
 				}
 				tr := tar.NewReader(reader)
+				// mutex.Lock()
 				err = unpackTar(tr, path)
+				// mutex.Unlock()
 				if err != nil {
 					errs <- fmt.Errorf("Failed to untar layer with error: %s", err)
 				}
 				return
-			}(b, i)
+			}(b, i, &wg)
 		}
 		wg.Wait()
 		close(errs)

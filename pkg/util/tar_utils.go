@@ -22,11 +22,16 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/golang/glog"
 )
 
+var mutex = &sync.Mutex{}
+
 func unpackTar(tr *tar.Reader, path string) error {
+	mutex.Lock()
+	defer mutex.Unlock()
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {
