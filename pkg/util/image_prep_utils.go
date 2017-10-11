@@ -20,9 +20,11 @@ import (
 	"archive/tar"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/containers/image/pkg/compression"
 	"github.com/containers/image/types"
@@ -107,31 +109,50 @@ func getFileSystemFromReference(ref types.ImageReference, imageName string) (str
 		return "", err
 	}
 
-	for _, b := range img.LayerInfos() {
-		bi, _, err := imgSrc.GetBlob(b)
-		if err != nil {
-			glog.Errorf("Failed to pull image layer: %s", err)
-			return "", err
-		}
-		// try and detect layer compression
-		f, reader, err := compression.DetectCompression(bi)
-		if err != nil {
-			glog.Errorf("Failed to detect image compression: %s", err)
-			return "", err
-		}
-		if f != nil {
-			// decompress if necessary
-			reader, err = f(reader)
+	layerInfos := img.LayerInfos()
+	wg := &sync.WaitGroup{}
+	wg.Add(len(layerInfos))
+
+	errs := make(chan error, 1)
+
+	for i, b := range layerInfos {
+		go func(b types.BlobInfo, i int) {
+			bi, _, err := imgSrc.GetBlob(b)
 			if err != nil {
-				glog.Errorf("Failed to decompress image: %s", err)
-				return "", err
+				errs <- fmt.Errorf("Failed to pull image layer: %s", err)
+				wg.Done()
+				return
 			}
+			// try and detect layer compression
+			f, reader, err := compression.DetectCompression(bi)
+			if err != nil {
+				errs <- fmt.Errorf("Failed to detect image compression: %s", err)
+				return
+			}
+			if f != nil {
+				// decompress if necessary
+				reader, err = f(reader)
+				if err != nil {
+					errs <- fmt.Errorf("Failed to decompress image: %s", err)
+					wg.Done()
+					return
+				}
+			}
+			tr := tar.NewReader(reader)
+			err = unpackTar(tr, path)
+			if err != nil {
+				errs <- fmt.Errorf("Failed to untar layer with error: %s", err)
+			}
+			wg.Done()
+			return
+		}(b, i)
+	}
+	if len(errs) != 0 {
+		var fullError string
+		for err := range errs {
+			fullError = fullError + err.Error()
 		}
-		tr := tar.NewReader(reader)
-		err = unpackTar(tr, path)
-		if err != nil {
-			glog.Errorf("Failed to untar layer with error: %s", err)
-		}
+		return "", errors.New(fullError)
 	}
 	return path, nil
 }
