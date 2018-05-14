@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -35,14 +36,17 @@ import (
 	pkgutil "github.com/GoogleContainerTools/container-diff/pkg/util"
 	"github.com/GoogleContainerTools/container-diff/util"
 	"github.com/google/go-containerregistry/v1"
+	homedir "github.com/mitchellh/go-homedir"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
 var json bool
+
 var save bool
 var types diffTypes
+var noCache bool
 
 var LogLevel string
 var format string
@@ -164,7 +168,6 @@ func getImageForName(imageName string) (pkgutil.Image, error) {
 			return pkgutil.Image{}, err
 		}
 	}
-	// TODO(nkubala): implement caching
 
 	// create tempdir and extract fs into it
 	var layers []pkgutil.Layer
@@ -190,10 +193,29 @@ func getImageForName(imageName string) (pkgutil.Image, error) {
 			})
 		}
 	}
-	path, err := ioutil.TempDir("", strings.Replace(imageName, "/", "", -1))
-	if err != nil {
-		return pkgutil.Image{}, err
+
+	var path string
+	if !noCache {
+		path, err = cacheDir(imageName)
+		if err != nil {
+			return pkgutil.Image{}, err
+		}
+		// if cachedir doesn't exist, create it
+		if _, err := os.Stat(path); err != nil && os.IsNotExist(err) {
+			err = os.MkdirAll(path, 0700)
+			if err != nil {
+				return pkgutil.Image{}, err
+			}
+			logrus.Infof("Image fs cached at %s", path)
+		}
+	} else {
+		// otherwise, create tempdir
+		path, err = ioutil.TempDir("", strings.Replace(imageName, "/", "", -1))
+		if err != nil {
+			return pkgutil.Image{}, err
+		}
 	}
+	// extract fs into provided dir
 	if err := pkgutil.GetFileSystemForImage(img, path, nil); err != nil {
 		return pkgutil.Image{
 			FSPath: path,
@@ -215,6 +237,16 @@ func includeLayers() bool {
 		}
 	}
 	return false
+}
+
+func cacheDir(imageName string) (string, error) {
+	dir, err := homedir.Dir()
+	if err != nil {
+		return "", err
+	}
+	rootDir := filepath.Join(dir, ".container-diff", "cache")
+	imageName = strings.Replace(imageName, string(os.PathSeparator), "", -1)
+	return filepath.Join(rootDir, filepath.Clean(imageName)), nil
 }
 
 func init() {
@@ -254,4 +286,5 @@ func addSharedFlags(cmd *cobra.Command) {
 	cmd.Flags().VarP(&types, "type", "t", "This flag sets the list of analyzer types to use. Set it repeatedly to use multiple analyzers.")
 	cmd.Flags().BoolVarP(&save, "save", "s", false, "Set this flag to save rather than remove the final image filesystems on exit.")
 	cmd.Flags().BoolVarP(&util.SortSize, "order", "o", false, "Set this flag to sort any file/package results by descending size. Otherwise, they will be sorted by name.")
+	cmd.Flags().BoolVarP(&noCache, "no-cache", "n", false, "Set this to force retrieval of image filesystem on each run.")
 }

@@ -136,6 +136,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/mitchellh/go-homedir"
+  packages = ["."]
+  revision = "b8bc1bf767474819792c23f32d8286a45736f1c6"
+
+[[projects]]
+  branch = "master"
   name = "github.com/nightlyone/lockfile"
   packages = ["."]
   revision = "6a197d5ea61168f2ac821de2b7f011b250904900"
@@ -228,6 +234,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "637da5becda61a1429f1e7b7f525caf0d1e36c0306e8510f3dbaadea104f2d61"
+  inputs-digest = "0c8d8eeb9e7f75a7febd3c4d25faf6d4c99b0224d2b32b168b58ae69f46bc388"
   solver-name = "gps-cdcl"
   solver-version = 1

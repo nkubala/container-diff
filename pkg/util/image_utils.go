@@ -83,7 +83,16 @@ func GetFileSystemForLayer(layer v1.Layer, root string, whitelist []string) erro
 }
 
 // unpack image filesystem to local disk
+// if provided directory is not empty, do nothing
 func GetFileSystemForImage(image v1.Image, root string, whitelist []string) error {
+	empty, err := DirIsEmpty(root)
+	if err != nil {
+		return err
+	}
+	if !empty {
+		logrus.Infof("Using cached filesystem in %s", root)
+		return nil
+	}
 	if err := unpackTar(tar.NewReader(mutate.Extract(image)), root, whitelist); err != nil {
 		return err
 	}

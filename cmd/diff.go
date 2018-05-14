@@ -97,7 +97,7 @@ func diffImages(image1Arg, image2Arg string, diffArgs []string) error {
 	}
 	wg.Wait()
 
-	if !save {
+	if noCache && !save {
 		defer pkgutil.CleanupImage(*imageMap[image1Arg])
 		defer pkgutil.CleanupImage(*imageMap[image2Arg])
 	}
@@ -121,7 +121,7 @@ func diffImages(image1Arg, image2Arg string, diffArgs []string) error {
 		}
 	}
 
-	if save {
+	if noCache && save {
 		logrus.Infof("Images were saved at %s and %s", imageMap[image1Arg].FSPath,
 			imageMap[image2Arg].FSPath)
 	}

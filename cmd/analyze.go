@@ -64,7 +64,7 @@ func analyzeImage(imageName string, analyzerArgs []string) error {
 		return err
 	}
 
-	if !save {
+	if noCache && !save {
 		defer pkgutil.CleanupImage(image)
 	}
 	if err != nil {
@@ -82,7 +82,7 @@ func analyzeImage(imageName string, analyzerArgs []string) error {
 	output.PrintToStdErr("Retrieving analyses\n")
 	outputResults(analyses)
 
-	if save {
+	if noCache && save {
 		logrus.Infof("Image was saved at %s", image.FSPath)
 	}
 
