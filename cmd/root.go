@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/google/go-containerregistry/authn"
 	"github.com/google/go-containerregistry/name"
@@ -133,10 +134,13 @@ func getImageForName(imageName string) (pkgutil.Image, error) {
 	var img v1.Image
 	var err error
 	if pkgutil.IsTar(imageName) {
+		start := time.Now()
 		img, err = tarball.ImageFromPath(imageName, nil)
 		if err != nil {
 			return pkgutil.Image{}, err
 		}
+		elapsed := time.Now().Sub(start)
+		logrus.Infof("time elapsed retrieving image from tar: %fs", elapsed.Seconds())
 	}
 
 	if strings.HasPrefix(imageName, DaemonPrefix) {
@@ -148,10 +152,15 @@ func getImageForName(imageName string) (pkgutil.Image, error) {
 			return pkgutil.Image{}, err
 		}
 
-		img, err = daemon.Image(ref, &daemon.ReadOptions{})
+		start := time.Now()
+		img, err = daemon.Image(ref, &daemon.ReadOptions{
+			Buffer: true,
+		})
 		if err != nil {
 			return pkgutil.Image{}, err
 		}
+		elapsed := time.Now().Sub(start)
+		logrus.Infof("time elapsed retrieving image from daemon: %fs", elapsed.Seconds())
 	} else {
 		// either has remote prefix or has no prefix, in which case we force remote
 		imageName = strings.Replace(imageName, RemotePrefix, "", -1)
@@ -163,20 +172,27 @@ func getImageForName(imageName string) (pkgutil.Image, error) {
 		if err != nil {
 			return pkgutil.Image{}, err
 		}
+		start := time.Now()
 		img, err = remote.Image(ref, auth, http.DefaultTransport)
 		if err != nil {
 			return pkgutil.Image{}, err
 		}
+		elapsed := time.Now().Sub(start)
+		logrus.Infof("time elapsed retrieving remote image: %fs", elapsed.Seconds())
 	}
 
 	// create tempdir and extract fs into it
 	var layers []pkgutil.Layer
 	if includeLayers() {
+		start := time.Now()
 		imgLayers, err := img.Layers()
 		if err != nil {
 			return pkgutil.Image{}, err
 		}
 		for _, layer := range imgLayers {
+			layerStart := time.Now()
+			// digest, err := layer.Digest()
+			// logrus.Infof("layer digest: %s", digest.String())
 			path, err := ioutil.TempDir("", strings.Replace(imageName, "/", "", -1))
 			if err != nil {
 				return pkgutil.Image{
@@ -191,7 +207,11 @@ func getImageForName(imageName string) (pkgutil.Image, error) {
 			layers = append(layers, pkgutil.Layer{
 				FSPath: path,
 			})
+			elapsed := time.Now().Sub(layerStart)
+			logrus.Infof("time elapsed retrieving layer: %fs", elapsed.Seconds())
 		}
+		elapsed := time.Now().Sub(start)
+		logrus.Infof("time elapsed retrieving image layers: %fs", elapsed.Seconds())
 	}
 
 	var path string
